@@ -32,6 +32,14 @@ automatically when 3 players are in the lobby, or the first player can press
 Enter to start with just 2. Everyone plays with the arrow keys (or WASD) and
 shoots with Space (or F).
 
+Mobile
+------
+
+On phones and tablets an on-screen control pad appears automatically (a d-pad,
+a fire button, and START / SELECT so the menu is reachable without a keyboard).
+Desktop is unaffected — it keeps the physical keyboard controls. The pad drives
+every mode, including online play.
+
 Deploying (free hosting on Render)
 ----------------------------------
 

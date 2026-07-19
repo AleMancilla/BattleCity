@@ -24,3 +24,121 @@ body {
 #help td {
   padding-left: 1em;
 }
+
+/* ---- Mobile / touch layout ---- */
+/* The body gets the "touch" class only when on-screen controls are active. */
+
+body.touch {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+body.touch #main {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+body.touch #canvas {
+  display: block;
+  width: 100vw;
+  height: auto;
+  max-height: 55vh;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+body.touch #help {
+  display: none;
+}
+
+#touch-controls {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 10px calc(16px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+/* D-pad: a 3x3 grid with arrows in the plus positions. */
+#touch-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 48px);
+  grid-template-rows: repeat(3, 48px);
+  flex: 0 0 auto;
+}
+.tc-up    { grid-column: 2; grid-row: 1; }
+.tc-left  { grid-column: 1; grid-row: 2; }
+.tc-right { grid-column: 3; grid-row: 2; }
+.tc-down  { grid-column: 2; grid-row: 3; }
+
+#touch-system {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+#touch-actions {
+  flex: 0 0 auto;
+}
+
+.tc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-family: prstart;
+  background-color: #3a3a3a;
+  border: 2px solid #1a1a1a;
+  box-shadow: 0 3px 0 #1a1a1a;
+  touch-action: none;
+  cursor: pointer;
+}
+.tc-btn.pressed {
+  transform: translateY(3px);
+  box-shadow: none;
+  background-color: #5a5a5a;
+}
+
+/* Directional buttons carry a CSS triangle pointing the right way. The
+   direction rules are scoped under #touch-dpad so they outweigh the shared
+   #touch-dpad .tc-btn::after base rule. */
+#touch-dpad .tc-btn {
+  border-radius: 8px;
+}
+#touch-dpad .tc-btn::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border: 10px solid transparent;
+}
+#touch-dpad .tc-up::after    { border-bottom-color: #ffffff; margin-bottom: 7px; }
+#touch-dpad .tc-down::after  { border-top-color: #ffffff;    margin-top: 7px; }
+#touch-dpad .tc-left::after  { border-right-color: #ffffff;  margin-right: 7px; }
+#touch-dpad .tc-right::after { border-left-color: #ffffff;   margin-left: 7px; }
+
+.tc-fire {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background-color: #c0392b;
+  border-color: #7a1f16;
+  box-shadow: 0 4px 0 #7a1f16;
+  font-size: 22px;
+}
+
+.tc-select, .tc-start {
+  width: 78px;
+  height: 34px;
+  border-radius: 17px;
+  font-size: 11px;
+  padding: 0;
+}
