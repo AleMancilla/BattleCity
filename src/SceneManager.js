@@ -26,9 +26,9 @@ SceneManager.prototype.toMainMenuScene = function (arrived) {
   }
 };
 
-SceneManager.prototype.toGameScene = function (stage, player) {
+SceneManager.prototype.toGameScene = function (stage, player, player2) {
   this._eventManager.removeAllSubscribers();
-  this._scene = new GameScene(this, stage, player);
+  this._scene = new GameScene(this, stage, player, player2);
 };
 
 SceneManager.prototype.toConstructionScene = function () {
@@ -36,9 +36,9 @@ SceneManager.prototype.toConstructionScene = function () {
   this._scene = new Construction(this);
 };
 
-SceneManager.prototype.toStageStatisticsScene = function (stage, player, gameOver) {
+SceneManager.prototype.toStageStatisticsScene = function (stage, player, gameOver, player2) {
   this._eventManager.removeAllSubscribers();
-  this._scene = new StageStatisticsScene(this, stage, player, gameOver);
+  this._scene = new StageStatisticsScene(this, stage, player, gameOver, player2);
 };
 
 SceneManager.prototype.toGameOverScene = function () {

@@ -12,6 +12,10 @@ Keyboard.Key.UP = 38;
 Keyboard.Key.RIGHT = 39;
 Keyboard.Key.DOWN = 40;
 Keyboard.Key.S = 83;
+Keyboard.Key.A = 65;
+Keyboard.Key.D = 68;
+Keyboard.Key.W = 87;
+Keyboard.Key.F = 70;
 Keyboard.Key.SELECT = 17;
 Keyboard.Key.START = 13;
 

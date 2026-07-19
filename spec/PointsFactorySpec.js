@@ -18,7 +18,7 @@ describe("PointsFactory", function () {
         tank.setValue(100);
         var explosion = new TankExplosion(eventManager, tank);
         factory.notify({'name': TankExplosion.Event.DESTROYED, 'explosion': explosion});
-        expect(factory.create).toHaveBeenCalledWith(explosion.getCenter(), tank.getValue(), Points.Type.TANK);
+        expect(factory.create).toHaveBeenCalledWith(explosion.getCenter(), tank.getValue(), Points.Type.TANK, tank.getDestroyer());
       });
       
       it("enemy tank - 0 points", function () {
@@ -51,7 +51,7 @@ describe("PointsFactory", function () {
         powerUp.setPosition(new Point(1, 2));
         powerUp.setValue(200);
         factory.notify({'name': PowerUp.Event.PICK, 'powerUp': powerUp});
-        expect(factory.create).toHaveBeenCalledWith(powerUp.getCenter(), powerUp.getValue(), Points.Type.POWERUP);
+        expect(factory.create).toHaveBeenCalledWith(powerUp.getCenter(), powerUp.getValue(), Points.Type.POWERUP, powerUp.getPlayerTank());
       });
     });
   });

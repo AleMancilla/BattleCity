@@ -290,12 +290,25 @@ describe("Tank", function () {
         it("other's bullet", function () {
           spyOn(tank, 'hit');
           var otherTank = new Tank(eventManager);
+          otherTank.makeEnemy();
           var bullet = new Bullet(eventManager, otherTank);
           tank.notify({
             'name': CollisionDetector.Event.COLLISION,
             'initiator': bullet,
             'sprite': tank});
           expect(tank.hit).toHaveBeenCalled();
+        });
+
+        it("other player's bullet", function () {
+          spyOn(tank, 'hit');
+          var otherTank = new Tank(eventManager);
+          otherTank.setType(Tank.Type.PLAYER_2);
+          var bullet = new Bullet(eventManager, otherTank);
+          tank.notify({
+            'name': CollisionDetector.Event.COLLISION,
+            'initiator': bullet,
+            'sprite': tank});
+          expect(tank.hit).not.toHaveBeenCalled();
         });
         
         it("own bullet", function () {

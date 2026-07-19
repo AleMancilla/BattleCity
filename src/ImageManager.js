@@ -186,16 +186,43 @@ var ImageManager = (function() {
   
   var imagesCount = Object.size(images);
   var imagesLoaded = 0;
-  
+
   for (var i in images) {
     var img = new Image();
     img.src = 'images/' + i + '.png';
     img.onload = function () { ++imagesLoaded; };
     images[i] = img;
   }
-  
+
+  // Player 2 sprites don't exist as files: they are built from the player 1
+  // (yellow) sprites by lowering the red channel to the blue level, which
+  // turns yellow into green and leaves grays untouched.
+  var derivedImages = {};
+
+  function makePlayer2Image(name) {
+    var base = images[name.replace('player2', 'player1')];
+    var canvas = document.createElement('canvas');
+    canvas.width = base.width;
+    canvas.height = base.height;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(base, 0, 0);
+    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var data = imageData.data;
+    for (var i = 0; i < data.length; i += 4) {
+      data[i] = Math.min(data[i], data[i + 2]);
+    }
+    ctx.putImageData(imageData, 0, 0);
+    return canvas;
+  }
+
   return {
     getImage: function (name) {
+      if (images[name] === undefined && name.indexOf('tank_player2') == 0) {
+        if (derivedImages[name] === undefined) {
+          derivedImages[name] = makePlayer2Image(name);
+        }
+        return derivedImages[name];
+      }
       return images[name];
     },
     getLoadingProgress: function () {

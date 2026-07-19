@@ -9,6 +9,7 @@ function MainMenuScene(sceneManager) {
   this._mainMenu = new MainMenu();
   this._mainMenu.setItems([
     new OnePlayerMenuItem(this._sceneManager),
+    new TwoPlayersMenuItem(this._sceneManager),
     new ConstructionMenuItem(this._sceneManager)
   ]);
   
