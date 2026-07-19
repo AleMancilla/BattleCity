@@ -26,11 +26,29 @@ share a match: the first two are the tanks, and an optional 3rd player is
 **the enemy** — they take control of one of the attacking bots (marked with a
 blinking white outline that only the enemy player can see; to the tanks the
 human is indistinguishable from the AI) and respawn as the next bot each time
-they die,
-cycling through every enemy type, flashing reds included. The match starts
-automatically when 3 players are in the lobby, or the first player can press
-Enter to start with just 2. Everyone plays with the arrow keys (or WASD) and
-shoots with Space (or F).
+they die, cycling through every enemy type, flashing reds included. The match
+starts automatically when 3 players are in the lobby, or the first player can
+press Enter to start with just 2. Everyone plays with the arrow keys (or WASD)
+and shoots with Space (or F).
+
+### Voice chat
+
+During an online match a **VOICE** button appears (top-right). Each player can
+turn their own microphone on or off; two players hear each other only when both
+have voice enabled. Audio is peer-to-peer over WebRTC — only the connection
+setup uses the relay, so voice stays within the room. Requires microphone
+permission and a secure origin (HTTPS or localhost); the Render deployment is
+HTTPS, so it works there. A public STUN server handles most home networks;
+players behind very restrictive NATs may not connect (that would need a TURN
+server, which the free setup does not include).
+
+Mobile
+------
+
+On phones and tablets an on-screen control pad appears automatically (a d-pad,
+a fire button, and START / SELECT so the menu is reachable without a keyboard).
+Desktop is unaffected — it keeps the physical keyboard controls. The pad drives
+every mode, including online play.
 
 Deploying (free hosting on Render)
 ----------------------------------

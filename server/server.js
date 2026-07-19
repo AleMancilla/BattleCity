@@ -13,9 +13,9 @@ var PORT = process.env.PORT || 8080;
 var ROOT = path.join(__dirname, '..');
 
 var CONTENT_TYPES = {
-  '.html': 'text/html',
-  '.js': 'application/javascript',
-  '.css': 'text/css',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.ogg': 'audio/ogg',

@@ -33,19 +33,30 @@ Keyboard.Event.KEY_RELEASED = 'Keyboard.Event.KEY_RELEASED';
 Keyboard.prototype._listen = function () {
   var self = this;
   $(document).keydown(function (event) {
-    if (!self._keys[event.which]) {
-      self._keys[event.which] = true;
-      self._events.push({name: Keyboard.Event.KEY_PRESSED, key: event.which});
-    }
+    self.press(event.which);
     event.preventDefault();
   });
   $(document).keyup(function (event) {
-    if (self._keys[event.which]) {
-      self._keys[event.which] = false;
-      self._events.push({name: Keyboard.Event.KEY_RELEASED, key: event.which});
-    }
+    self.release(event.which);
     event.preventDefault();
   });
+};
+
+// Inject a key press/release from a source other than the physical keyboard
+// (e.g. on-screen touch controls). The _keys guard debounces held keys so a
+// pressed button emits a single KEY_PRESSED, matching real keyboard repeat.
+Keyboard.prototype.press = function (key) {
+  if (!this._keys[key]) {
+    this._keys[key] = true;
+    this._events.push({name: Keyboard.Event.KEY_PRESSED, key: key});
+  }
+};
+
+Keyboard.prototype.release = function (key) {
+  if (this._keys[key]) {
+    this._keys[key] = false;
+    this._events.push({name: Keyboard.Event.KEY_RELEASED, key: key});
+  }
 };
 
 Keyboard.prototype.fireEvents = function () {

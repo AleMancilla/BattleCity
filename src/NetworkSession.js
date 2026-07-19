@@ -8,9 +8,10 @@
 // scheduled INPUT_DELAY ticks into the future. Tick N is simulated only when
 // every player's inputs for N are known, and events always fire in player
 // order (1, 2, 3), so all simulations stay identical.
-function NetworkSession(keyboard, sceneManager) {
+function NetworkSession(keyboard, sceneManager, voiceChat) {
   this._keyboard = keyboard;
   this._sceneManager = sceneManager;
+  this._voiceChat = voiceChat || null;
   this._state = NetworkSession.State.IDLE;
   this._socket = null;
   this._playerNumber = 0;
@@ -107,6 +108,10 @@ NetworkSession.prototype.start = function () {
 };
 
 NetworkSession.prototype._onMessage = function (message) {
+  if (this._voiceChat && VoiceChat.isSignal(message)) {
+    this._voiceChat.handleSignal(message);
+    return;
+  }
   if (message.t == 'lobby') {
     this._state = NetworkSession.State.LOBBY;
     this._lobbyCount = message.count;
@@ -148,6 +153,9 @@ NetworkSession.prototype._beginMatch = function (seed, playerNumber, playersCoun
   var hasEnemyPlayer = this._playersCount == 3;
   this._sceneManager.toGameScene(undefined, new Player(), new Player(Tank.Type.PLAYER_2), hasEnemyPlayer);
   this._state = NetworkSession.State.PLAYING;
+  if (this._voiceChat) {
+    this._voiceChat.onMatchStart(this._playerNumber, this._playersCount, this._send.bind(this));
+  }
 };
 
 // Called from the main loop instead of the normal keyboard/update path
@@ -263,6 +271,9 @@ NetworkSession.prototype._endSession = function () {
     return;
   }
   this._state = NetworkSession.State.IDLE;
+  if (this._voiceChat) {
+    this._voiceChat.onMatchEnd();
+  }
   if (this._socket) {
     this._socket.onclose = null;
     this._socket.onerror = null;

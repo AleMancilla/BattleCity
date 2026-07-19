@@ -3,7 +3,9 @@
 <html>
 <head>
   <title>Battle City</title>
-  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
   <link rel="stylesheet" type="text/css" href="css/BattleCity.css" />
   
   <script type="text/javascript" src="lib/jquery-1.7.2.js"></script>
@@ -75,6 +77,8 @@
   <script type="text/javascript" src="src/EnemyPlayerController.js"></script>
   <script type="text/javascript" src="src/EnemyPlayerControllerFactory.js"></script>
   <script type="text/javascript" src="src/EnemyPlayerView.js"></script>
+  <script type="text/javascript" src="src/VoiceChat.js"></script>
+  <script type="text/javascript" src="src/TouchControls.js"></script>
   <script type="text/javascript" src="src/ConstructionMenuItem.js"></script>
   <script type="text/javascript" src="src/MainMenu.js"></script>
   <script type="text/javascript" src="src/MainMenuController.js"></script>
@@ -126,9 +130,18 @@
       var eventManager = new EventManager();
       var keyboard = new Keyboard(eventManager);
       var sceneManager = new SceneManager(eventManager);
-      var networkSession = new NetworkSession(keyboard, sceneManager);
+      var voiceChat = VoiceChat.isSupported() ? new VoiceChat() : null;
+      if (voiceChat) {
+        voiceChat.attach(document.body);
+      }
+
+      var networkSession = new NetworkSession(keyboard, sceneManager, voiceChat);
       NetworkSession.instance = networkSession;
       sceneManager.toLoadingScene();
+
+      if (TouchControls.isMobile()) {
+        new TouchControls(keyboard).attach(document.body);
+      }
 
       // The interval is only a wake-up source: ticks are gated by wall time
       // so browsers that fire timers too often (or coalesce them) still run
