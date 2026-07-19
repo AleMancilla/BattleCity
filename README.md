@@ -32,4 +32,14 @@ automatically when 3 players are in the lobby, or the first player can press
 Enter to start with just 2. Everyone plays with the arrow keys (or WASD) and
 shoots with Space (or F).
 
+Deploying (free hosting on Render)
+----------------------------------
+
+The repo includes a `render.yaml` blueprint. Push the repo to your own
+GitHub, then on [render.com](https://render.com): **New → Blueprint**, connect
+the repo and deploy. The single service serves both the game files and the
+WebSocket relay, so the resulting `https://<name>.onrender.com` URL is all
+players need. Note that free instances sleep after 15 idle minutes; the
+first visit afterwards takes up to a minute to wake the server.
+
 ![Screenshot of the Battle City game](screenshot.jpg)

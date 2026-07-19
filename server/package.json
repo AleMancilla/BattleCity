@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Static file + WebSocket relay server for BattleCity online 2-player mode",
   "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js"
   },
