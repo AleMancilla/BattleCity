@@ -25,6 +25,39 @@ body {
   padding-left: 1em;
 }
 
+/* ---- Voice chat toggle ---- */
+#voice-chat {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+}
+#voice-toggle {
+  font-family: prstart;
+  font-size: 11px;
+  color: #ffffff;
+  padding: 8px 12px;
+  border: 2px solid #1a1a1a;
+  border-radius: 6px;
+  box-shadow: 0 2px 0 #1a1a1a;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+#voice-toggle.voice-off {
+  background-color: #3a3a3a;
+}
+#voice-toggle.voice-on {
+  background-color: #2e8b57;
+}
+#voice-toggle:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+#voice-chat audio {
+  display: none;
+}
+
 /* ---- Mobile / touch layout ---- */
 /* The body gets the "touch" class only when on-screen controls are active. */
 

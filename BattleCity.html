@@ -77,6 +77,7 @@
   <script type="text/javascript" src="src/EnemyPlayerController.js"></script>
   <script type="text/javascript" src="src/EnemyPlayerControllerFactory.js"></script>
   <script type="text/javascript" src="src/EnemyPlayerView.js"></script>
+  <script type="text/javascript" src="src/VoiceChat.js"></script>
   <script type="text/javascript" src="src/TouchControls.js"></script>
   <script type="text/javascript" src="src/ConstructionMenuItem.js"></script>
   <script type="text/javascript" src="src/MainMenu.js"></script>
@@ -129,7 +130,12 @@
       var eventManager = new EventManager();
       var keyboard = new Keyboard(eventManager);
       var sceneManager = new SceneManager(eventManager);
-      var networkSession = new NetworkSession(keyboard, sceneManager);
+      var voiceChat = VoiceChat.isSupported() ? new VoiceChat() : null;
+      if (voiceChat) {
+        voiceChat.attach(document.body);
+      }
+
+      var networkSession = new NetworkSession(keyboard, sceneManager, voiceChat);
       NetworkSession.instance = networkSession;
       sceneManager.toLoadingScene();
 
