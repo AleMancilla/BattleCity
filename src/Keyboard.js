@@ -47,3 +47,9 @@ Keyboard.prototype.fireEvents = function () {
   }, this);
   this._events = [];
 };
+
+Keyboard.prototype.drainEvents = function () {
+  var events = this._events;
+  this._events = [];
+  return events;
+};

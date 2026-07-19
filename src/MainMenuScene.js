@@ -10,6 +10,7 @@ function MainMenuScene(sceneManager) {
   this._mainMenu.setItems([
     new OnePlayerMenuItem(this._sceneManager),
     new TwoPlayersMenuItem(this._sceneManager),
+    new OnlineMenuItem(this._sceneManager),
     new ConstructionMenuItem(this._sceneManager)
   ]);
   
@@ -65,7 +66,6 @@ MainMenuScene.prototype.draw = function (ctx) {
   
   ctx.fillText("HI- 20000", 178, this._y + 46);
   
-  ctx.drawImage(ImageManager.getImage('namcot'), 176, this._y + 352);
   
   ctx.drawImage(ImageManager.getImage('copyright'), 64, this._y + 384);
   ctx.fillText("1980 1985 NAMCO LTD.", 98, this._y + 398);

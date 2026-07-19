@@ -14,4 +14,15 @@ Local 2-player co-op mode is available from the main menu ("2 PLAYERS"):
 To run locally, serve the directory over HTTP (e.g. `python3 -m http.server 8000`)
 and open `http://localhost:8000/BattleCity.html`.
 
+Online 2-player mode ("ONLINE" in the main menu) uses deterministic lockstep
+over a WebSocket relay. To play online, run the bundled server instead:
+
+    cd server
+    npm install
+    npm start
+
+Both players then open `http://<host>:8080` and choose ONLINE — the first two
+connections are paired into a match. Each player controls their tank with the
+arrow keys (or WASD) and shoots with Space (or F).
+
 ![Screenshot of the Battle City game](screenshot.jpg)

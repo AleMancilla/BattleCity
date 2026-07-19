@@ -70,6 +70,8 @@
   <script type="text/javascript" src="src/MainMenuItem.js"></script>
   <script type="text/javascript" src="src/OnePlayerMenuItem.js"></script>
   <script type="text/javascript" src="src/TwoPlayersMenuItem.js"></script>
+  <script type="text/javascript" src="src/OnlineMenuItem.js"></script>
+  <script type="text/javascript" src="src/NetworkSession.js"></script>
   <script type="text/javascript" src="src/ConstructionMenuItem.js"></script>
   <script type="text/javascript" src="src/MainMenu.js"></script>
   <script type="text/javascript" src="src/MainMenuController.js"></script>
@@ -121,11 +123,32 @@
       var eventManager = new EventManager();
       var keyboard = new Keyboard(eventManager);
       var sceneManager = new SceneManager(eventManager);
+      var networkSession = new NetworkSession(keyboard, sceneManager);
+      NetworkSession.instance = networkSession;
       sceneManager.toLoadingScene();
-      
-      setInterval(gameLoop, 1000 / FPS);
-      
+
+      // The interval is only a wake-up source: ticks are gated by wall time
+      // so browsers that fire timers too often (or coalesce them) still run
+      // the simulation at exactly FPS ticks per second.
+      var TICK_INTERVAL = 1000 / FPS;
+      var nextTickTime = Date.now();
+
+      setInterval(gameLoop, TICK_INTERVAL / 2);
+
       function gameLoop() {
+        var now = Date.now();
+        if (now < nextTickTime) {
+          return;
+        }
+        nextTickTime += TICK_INTERVAL;
+        if (now - nextTickTime > 500) {
+          // Don't fast-forward after a long stall (background tab, etc).
+          nextTickTime = now;
+        }
+        if (networkSession.isActive()) {
+          networkSession.update(ctx);
+          return;
+        }
         keyboard.fireEvents();
         sceneManager.update();
         sceneManager.draw(ctx);

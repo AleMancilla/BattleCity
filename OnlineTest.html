@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BattleCity Online Test Harness</title>
+  <style>
+    body { background: #222; margin: 0; display: flex; }
+    iframe { border: 2px solid #555; margin: 4px; }
+  </style>
+</head>
+<body>
+  <!-- Two game clients side by side, for testing the online lockstep mode
+       on a single machine. Open via the node server (http://localhost:8080). -->
+  <iframe id="clientA" src="/BattleCity.html" width="512" height="470"></iframe>
+  <iframe id="clientB" src="/BattleCity.html" width="512" height="470"></iframe>
+  <script>
+    function frameKey(frameId, type, code) {
+      var doc = document.getElementById(frameId).contentDocument;
+      var e = new KeyboardEvent(type, {bubbles: true, cancelable: true});
+      Object.defineProperty(e, 'keyCode', {get: function () { return code; }});
+      Object.defineProperty(e, 'which', {get: function () { return code; }});
+      doc.dispatchEvent(e);
+    }
+    function framePress(frameId, code) {
+      frameKey(frameId, 'keydown', code);
+      frameKey(frameId, 'keyup', code);
+    }
+    function frameSession(frameId) {
+      return document.getElementById(frameId).contentWindow.NetworkSession.instance;
+    }
+  </script>
+</body>
+</html>
