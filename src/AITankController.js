@@ -27,6 +27,10 @@ AITankController.Event = {};
 AITankController.Event.CREATED = 'AITankController.Event.CREATED';
 AITankController.Event.DESTROYED = 'AITankController.Event.DESTROYED';
 
+AITankController.prototype.getTank = function () {
+  return this._tank;
+};
+
 AITankController.prototype.setShootInterval = function (interval) {
   this._shootInterval = interval;
 };

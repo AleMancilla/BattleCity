@@ -11,5 +11,14 @@ PlayerTankControllerFactory.prototype.notify = function (event) {
 
 PlayerTankControllerFactory.prototype.create = function (tank) {
   var controller = new TankController(this._eventManager, tank);
+  if (tank.getType() == Tank.Type.PLAYER_2) {
+    controller.setMovementKeys({
+      left: Keyboard.Key.A,
+      right: Keyboard.Key.D,
+      up: Keyboard.Key.W,
+      down: Keyboard.Key.S
+    });
+    controller.setShootKey(Keyboard.Key.F);
+  }
   return controller;
 };

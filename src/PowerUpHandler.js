@@ -41,7 +41,7 @@ PowerUpHandler.prototype.handle = function (powerUp) {
     this.handleStar(powerUp.getPlayerTank());
   }
   else if (powerUp.getType() == PowerUp.Type.TANK) {
-    this.handleTank();
+    this.handleTank(powerUp.getPlayerTank());
   }
 };
 
@@ -70,6 +70,10 @@ PowerUpHandler.prototype.handleStar = function (playerTank) {
   playerTank.upgrade();
 };
 
-PowerUpHandler.prototype.handleTank = function () {
-  this._eventManager.fireEvent({'name': PowerUpHandler.Event.TANK});
+PowerUpHandler.prototype.handleTank = function (playerTank) {
+  var event = {'name': PowerUpHandler.Event.TANK};
+  if (playerTank !== undefined && playerTank !== null) {
+    event.tank = playerTank;
+  }
+  this._eventManager.fireEvent(event);
 };

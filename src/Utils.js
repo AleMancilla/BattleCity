@@ -32,7 +32,7 @@ function arrayRemove(arr, obj) {
 }
 
 function arrayRandomElement(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+  return arr[Math.floor(Random.getNumber() * arr.length)];
 }
 
 String.prototype.lpad = function(padString, length) {

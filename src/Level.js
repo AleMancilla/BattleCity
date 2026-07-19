@@ -1,22 +1,29 @@
-function Level(sceneManager, stageNumber, player) {
+function Level(sceneManager, stageNumber, player, player2, hasEnemyPlayer) {
   Gamefield.call(this, sceneManager);
-  
+
   var self = this;
-  
+
   this._eventManager.addSubscriber(this, [
     BaseExplosion.Event.DESTROYED,
     Player.Event.OUT_OF_LIVES,
     EnemyFactory.Event.LAST_ENEMY_DESTROYED
   ]);
-  
+
   this._visible = false;
   this._stage = stageNumber;
-  
+
   new PlayerTankControllerFactory(this._eventManager);
-  
+
   this._playerTankFactory = new PlayerTankFactory(this._eventManager);
   this._playerTankFactory.setAppearPosition(new Point(this._x + 4 * Globals.UNIT_SIZE, this._y + 12 * Globals.UNIT_SIZE));
   this._playerTankFactory.create();
+
+  this._player2TankFactory = null;
+  if (player2 !== undefined) {
+    this._player2TankFactory = new PlayerTankFactory(this._eventManager, Tank.Type.PLAYER_2);
+    this._player2TankFactory.setAppearPosition(new Point(this._x + 8 * Globals.UNIT_SIZE, this._y + 12 * Globals.UNIT_SIZE));
+    this._player2TankFactory.create();
+  }
 
   new BulletFactory(this._eventManager);
   new BulletExplosionFactory(this._eventManager);
@@ -27,6 +34,17 @@ function Level(sceneManager, stageNumber, player) {
   
   this._aiControllersContainer = new AITankControllerContainer(this._eventManager);
   this._aiTankControllerFactory = new AITankControllerFactory(this._eventManager, this._spriteContainer);
+
+  // Created after the AI factory on purpose: it must receive ENEMY_CREATED
+  // second, so the AI controller already exists and can be replaced.
+  this._hasEnemyPlayer = hasEnemyPlayer === true;
+  this._enemyPlayerControllerFactory = null;
+  this._enemyPlayerView = null;
+  if (this._hasEnemyPlayer) {
+    this._enemyPlayerControllerFactory = new EnemyPlayerControllerFactory(this._eventManager);
+    this._enemyPlayerControllerFactory.setAIControllersContainer(this._aiControllersContainer);
+    this._enemyPlayerView = new EnemyPlayerView(this._enemyPlayerControllerFactory);
+  }
 
   this._enemyFactory = new EnemyFactory(this._eventManager);
   this._enemyFactory.setPositions([
@@ -62,21 +80,29 @@ function Level(sceneManager, stageNumber, player) {
   
   this._player = player === undefined ? new Player() : player;
   this._player.setEventManager(this._eventManager);
-  
-  this._livesView = new LivesView(this._player);
-  
+
+  this._player2 = player2;
+  if (this._player2 !== undefined) {
+    this._player2.setEventManager(this._eventManager);
+  }
+
+  this._playersOutOfLives = 0;
+  this._playersCount = this._player2 === undefined ? 1 : 2;
+
+  this._livesView = new LivesView(this._player, this._player2);
+
   this._gameOverMessage = new GameOverMessage();
-  
+
   this._gameOverScript = new Script();
   this._gameOverScript.setActive(false);
   this._gameOverScript.enqueue(new MoveFn(this._gameOverMessage, 'y', 213, 100, this._gameOverScript));
   this._gameOverScript.enqueue(new Delay(this._gameOverScript, 50));
-  this._gameOverScript.enqueue({execute: function () { sceneManager.toStageStatisticsScene(stageNumber, self._player, true); }});
-  
+  this._gameOverScript.enqueue({execute: function () { sceneManager.toStageStatisticsScene(stageNumber, self._player, true, self._player2, self._hasEnemyPlayer); }});
+
   this._levelTransitionScript = new Script();
   this._levelTransitionScript.setActive(false);
   this._levelTransitionScript.enqueue(new Delay(this._levelTransitionScript, 200));
-  this._levelTransitionScript.enqueue({execute: function () { sceneManager.toStageStatisticsScene(stageNumber, self._player, false); }});
+  this._levelTransitionScript.enqueue({execute: function () { sceneManager.toStageStatisticsScene(stageNumber, self._player, false, self._player2, self._hasEnemyPlayer); }});
   
   this._loadStage(this._stage);
 }
@@ -92,6 +118,9 @@ Level.prototype.update = function () {
   this._pause.update();
   this._gameOverScript.update();
   this._levelTransitionScript.update();
+  if (this._enemyPlayerView !== null) {
+    this._enemyPlayerView.update();
+  }
 };
 
 Level.prototype.draw = function (ctx) {
@@ -99,6 +128,9 @@ Level.prototype.draw = function (ctx) {
     return;
   }
   Gamefield.prototype.draw.call(this, ctx);
+  if (this._enemyPlayerView !== null) {
+    this._enemyPlayerView.draw(ctx);
+  }
   this._enemyFactoryView.draw(ctx);
   this._pause.draw(ctx);
   this._livesView.draw(ctx);
@@ -116,9 +148,17 @@ Level.prototype.notify = function (event) {
     this._pause.setActive(false);
   }
   else if (event.name == Player.Event.OUT_OF_LIVES) {
-    this._gameOverScript.setActive(true);
-    this._pause.setActive(false);
-    this._playerTankFactory.setActive(false);
+    this._playersOutOfLives++;
+    if (event.player === this._player2 && this._player2TankFactory !== null) {
+      this._player2TankFactory.setActive(false);
+    }
+    else {
+      this._playerTankFactory.setActive(false);
+    }
+    if (this._playersOutOfLives >= this._playersCount) {
+      this._gameOverScript.setActive(true);
+      this._pause.setActive(false);
+    }
   }
   else if (event.name == EnemyFactory.Event.LAST_ENEMY_DESTROYED) {
     this._levelTransitionScript.setActive(true);

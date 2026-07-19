@@ -1,8 +1,9 @@
-function PlayerTankFactory(eventManager) {
+function PlayerTankFactory(eventManager, tankType) {
   this._eventManager = eventManager;
   this._eventManager.addSubscriber(this, [TankExplosion.Event.DESTROYED]);
   this._appearPosition = new Point(0, 0);
   this._active = true;
+  this._tankType = tankType === undefined ? Tank.Type.PLAYER_1 : tankType;
 }
 
 PlayerTankFactory.Event = {};
@@ -23,6 +24,7 @@ PlayerTankFactory.prototype.setAppearPosition = function (position) {
 
 PlayerTankFactory.prototype.create = function () {
   var tank = new Tank(this._eventManager);
+  tank.setType(this._tankType);
   tank.setPosition(this._appearPosition);
   tank.setState(new TankStateAppearing(tank));
   this._eventManager.fireEvent({'name': PlayerTankFactory.Event.PLAYER_TANK_CREATED, 'tank': tank});
@@ -39,6 +41,9 @@ PlayerTankFactory.prototype._tankExplosionDestroyed = function (event) {
   }
   var tank = event.explosion.getTank();
   if (!tank.isPlayer()) {
+    return false;
+  }
+  if (tank.getType() != this._tankType) {
     return false;
   }
   return true;

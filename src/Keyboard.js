@@ -12,6 +12,17 @@ Keyboard.Key.UP = 38;
 Keyboard.Key.RIGHT = 39;
 Keyboard.Key.DOWN = 40;
 Keyboard.Key.S = 83;
+Keyboard.Key.A = 65;
+Keyboard.Key.D = 68;
+Keyboard.Key.W = 87;
+Keyboard.Key.F = 70;
+// Virtual key codes for the online enemy player (player 3); never typed
+// physically, only injected through the lockstep input stream.
+Keyboard.Key.H = 72;
+Keyboard.Key.I = 73;
+Keyboard.Key.J = 74;
+Keyboard.Key.K = 75;
+Keyboard.Key.L = 76;
 Keyboard.Key.SELECT = 17;
 Keyboard.Key.START = 13;
 
@@ -42,4 +53,10 @@ Keyboard.prototype.fireEvents = function () {
     this._eventManager.fireEvent(event);
   }, this);
   this._events = [];
+};
+
+Keyboard.prototype.drainEvents = function () {
+  var events = this._events;
+  this._events = [];
+  return events;
 };

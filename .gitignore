@@ -1,2 +1,4 @@
 /nbproject/
 /NOTES.txt
+.DS_Store
+node_modules/

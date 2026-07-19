@@ -2,9 +2,14 @@ function TankController(eventManager, tank) {
   SpriteController.call(this, eventManager, tank);
   this._eventManager.addSubscriber(this, [BaseExplosion.Event.DESTROYED]);
   this._active = true;
+  this._shootKey = Keyboard.Key.SPACE;
 }
 
 TankController.subclass(SpriteController);
+
+TankController.prototype.setShootKey = function (key) {
+  this._shootKey = key;
+};
 
 TankController.prototype.notify = function (event) {
   SpriteController.prototype.notify.call(this, event);
@@ -21,7 +26,7 @@ TankController.prototype.keyPressed = function (key) {
   }
   SpriteController.prototype.keyPressed.call(this, key);
   
-  if (key == Keyboard.Key.SPACE) {
+  if (key == this._shootKey) {
     this._sprite.shoot();
   }
 };

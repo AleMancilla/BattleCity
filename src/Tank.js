@@ -44,6 +44,7 @@ Tank.subclass(Sprite);
 
 Tank.Type = {};
 Tank.Type.PLAYER_1 = 'player1';
+Tank.Type.PLAYER_2 = 'player2';
 Tank.Type.BASIC = 'basic';
 Tank.Type.FAST = 'fast';
 Tank.Type.POWER = 'power';
@@ -170,6 +171,7 @@ Tank.prototype.notify = function (event) {
     this.resolveCollisionWithSprite(event.sprite);
   }
   else if (this._bulletCollision(event) && this.canBeDestroyed()) {
+    this._destroyer = event.initiator.getTank();
     this.hit();
   }
   else if (event.name == CollisionDetector.Event.OUT_OF_BOUNDS && event.sprite === this) {
@@ -387,7 +389,14 @@ Tank.prototype._bulletCollision = function (event) {
   if (this.isEnemy() && otherTank.isEnemy()) {
     return false;
   }
+  if (this.isPlayer() && otherTank.isPlayer()) {
+    return false;
+  }
   return true;
+};
+
+Tank.prototype.getDestroyer = function () {
+  return this._destroyer;
 };
 
 Tank.prototype._wallCollision = function (event) {
