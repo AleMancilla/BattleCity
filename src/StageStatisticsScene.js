@@ -1,4 +1,4 @@
-function StageStatisticsScene(sceneManager, stage, player, gameOver, player2) {
+function StageStatisticsScene(sceneManager, stage, player, gameOver, player2, hasEnemyPlayer) {
   var self = this;
 
   this._sceneManager = sceneManager;
@@ -6,6 +6,7 @@ function StageStatisticsScene(sceneManager, stage, player, gameOver, player2) {
   this._player = player;
   this._player2 = player2;
   this._gameOver = gameOver;
+  this._hasEnemyPlayer = hasEnemyPlayer;
 
   this._script = new Script();
 
@@ -31,7 +32,7 @@ function StageStatisticsScene(sceneManager, stage, player, gameOver, player2) {
       sceneManager.toGameOverScene();
     }
     else {
-      sceneManager.toGameScene(stage + 1, player, player2);
+      sceneManager.toGameScene(stage + 1, player, player2, self._hasEnemyPlayer);
     }
   }});
 };

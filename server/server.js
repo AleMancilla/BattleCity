@@ -48,46 +48,80 @@ var httpServer = http.createServer(function (req, res) {
   });
 });
 
-// --- Matchmaking: first client waits, second client starts the match. ---
+// --- Matchmaking ---
+//
+// Clients gather in a lobby of up to 3. The first two are the tanks; an
+// optional third player controls the enemy bots. The match starts when the
+// lobby is full, or earlier when the host (first player) sends 'begin'.
 
-var waiting = null;
+var MAX_PLAYERS = 3;
+var lobby = [];
 
 var wss = new WebSocketServer({ server: httpServer });
 
+function broadcastLobby() {
+  lobby.forEach(function (socket, i) {
+    send(socket, { t: 'lobby', count: lobby.length, position: i + 1, max: MAX_PLAYERS });
+  });
+}
+
+function startMatch() {
+  var members = lobby;
+  lobby = [];
+  var seed = (Math.random() * 0xFFFFFFFF) >>> 0;
+  members.forEach(function (socket, i) {
+    socket.peers = members.filter(function (other) { return other !== socket; });
+    send(socket, { t: 'start', seed: seed, player: i + 1, players: members.length });
+  });
+  console.log('match started: ' + members.length + ' players, seed=' + seed);
+}
+
 wss.on('connection', function (socket) {
   socket.isAlive = true;
+  socket.peers = null;
   socket.on('pong', function () { socket.isAlive = true; });
 
-  if (waiting === null || waiting.readyState !== waiting.OPEN) {
-    waiting = socket;
-    socket.peer = null;
-    send(socket, { t: 'waiting' });
-  }
-  else {
-    var host = waiting;
-    waiting = null;
-    host.peer = socket;
-    socket.peer = host;
-    var seed = (Math.random() * 0xFFFFFFFF) >>> 0;
-    send(host, { t: 'start', seed: seed, player: 1 });
-    send(socket, { t: 'start', seed: seed, player: 2 });
-    console.log('match started, seed=' + seed);
+  lobby.push(socket);
+  broadcastLobby();
+  if (lobby.length === MAX_PLAYERS) {
+    startMatch();
   }
 
   socket.on('message', function (data) {
-    // Inputs are relayed verbatim to the peer; the server never simulates.
-    if (socket.peer && socket.peer.readyState === socket.peer.OPEN) {
-      socket.peer.send(data.toString());
+    var text = data.toString();
+    var message;
+    try { message = JSON.parse(text); } catch (e) { return; }
+
+    if (message.t === 'begin') {
+      // Only the host can start early, and only with at least 2 players.
+      if (socket === lobby[0] && lobby.length >= 2) {
+        startMatch();
+      }
+      return;
+    }
+    // Inputs are relayed verbatim to every peer; the server never simulates.
+    if (socket.peers) {
+      socket.peers.forEach(function (peer) {
+        if (peer.readyState === peer.OPEN) {
+          peer.send(text);
+        }
+      });
     }
   });
 
   socket.on('close', function () {
-    if (waiting === socket) {
-      waiting = null;
+    var index = lobby.indexOf(socket);
+    if (index !== -1) {
+      lobby.splice(index, 1);
+      broadcastLobby();
     }
-    if (socket.peer && socket.peer.readyState === socket.peer.OPEN) {
-      send(socket.peer, { t: 'peer_left' });
-      socket.peer.peer = null;
+    if (socket.peers) {
+      socket.peers.forEach(function (peer) {
+        if (peer.readyState === peer.OPEN) {
+          send(peer, { t: 'peer_left' });
+        }
+      });
+      socket.peers = null;
     }
   });
 });
@@ -108,14 +142,17 @@ setInterval(function () {
   });
 }, 30000);
 
-httpServer.on('error', function (err) {
+function onListenError(err) {
   if (err.code === 'EADDRINUSE') {
     console.error('Port ' + PORT + ' is already in use.');
     console.error('Stop the other process or run with another port: PORT=8081 npm start');
     process.exit(1);
   }
   throw err;
-});
+}
+
+httpServer.on('error', onListenError);
+wss.on('error', onListenError);
 
 httpServer.listen(PORT, function () {
   console.log('BattleCity server running at http://localhost:' + PORT);

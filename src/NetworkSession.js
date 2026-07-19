@@ -1,18 +1,26 @@
-// Online 2-player mode over a WebSocket relay, using deterministic lockstep:
-// both clients run the full simulation; only inputs travel over the wire.
+// Online multiplayer over a WebSocket relay, using deterministic lockstep:
+// every client runs the full simulation; only inputs travel over the wire.
+//
+// Matches have 2 or 3 players: players 1 and 2 are the tanks, the optional
+// player 3 controls the enemy bots (see EnemyPlayerControllerFactory).
 //
 // Each input is translated to an abstract action ('left', 'shoot', ...) and
 // scheduled INPUT_DELAY ticks into the future. Tick N is simulated only when
-// both players' inputs for N are known, so both simulations stay identical.
+// every player's inputs for N are known, and events always fire in player
+// order (1, 2, 3), so all simulations stay identical.
 function NetworkSession(keyboard, sceneManager) {
   this._keyboard = keyboard;
   this._sceneManager = sceneManager;
   this._state = NetworkSession.State.IDLE;
   this._socket = null;
   this._playerNumber = 0;
+  this._playersCount = 0;
   this._currentTick = 0;
   this._localQueue = {};
-  this._remoteQueue = {};
+  this._remoteQueues = {};
+  this._lobbyCount = 0;
+  this._lobbyPosition = 0;
+  this._lobbyMax = 3;
   this._statusText = '';
 }
 
@@ -22,7 +30,7 @@ NetworkSession.INPUT_DELAY = 3;
 NetworkSession.State = {};
 NetworkSession.State.IDLE = 'idle';
 NetworkSession.State.CONNECTING = 'connecting';
-NetworkSession.State.WAITING = 'waiting';
+NetworkSession.State.LOBBY = 'lobby';
 NetworkSession.State.PLAYING = 'playing';
 
 // Singleton wired up in BattleCity.html; used by OnlineMenuItem.
@@ -47,12 +55,19 @@ NetworkSession.actionToKey = function (action, playerNumber) {
     if (action == 'down') { return Keyboard.Key.DOWN; }
     if (action == 'shoot') { return Keyboard.Key.SPACE; }
   }
-  else {
+  else if (playerNumber == 2) {
     if (action == 'left') { return Keyboard.Key.A; }
     if (action == 'right') { return Keyboard.Key.D; }
     if (action == 'up') { return Keyboard.Key.W; }
     if (action == 'down') { return Keyboard.Key.S; }
     if (action == 'shoot') { return Keyboard.Key.F; }
+  }
+  else {
+    if (action == 'left') { return Keyboard.Key.J; }
+    if (action == 'right') { return Keyboard.Key.L; }
+    if (action == 'up') { return Keyboard.Key.I; }
+    if (action == 'down') { return Keyboard.Key.K; }
+    if (action == 'shoot') { return Keyboard.Key.H; }
   }
   return null;
 };
@@ -63,6 +78,10 @@ NetworkSession.prototype.isActive = function () {
 
 NetworkSession.prototype.getState = function () {
   return this._state;
+};
+
+NetworkSession.prototype.getPlayerNumber = function () {
+  return this._playerNumber;
 };
 
 NetworkSession.prototype.start = function () {
@@ -88,33 +107,46 @@ NetworkSession.prototype.start = function () {
 };
 
 NetworkSession.prototype._onMessage = function (message) {
-  if (message.t == 'waiting') {
-    this._state = NetworkSession.State.WAITING;
-    this._statusText = 'WAITING FOR OPPONENT';
+  if (message.t == 'lobby') {
+    this._state = NetworkSession.State.LOBBY;
+    this._lobbyCount = message.count;
+    this._lobbyPosition = message.position;
+    this._lobbyMax = message.max;
   }
   else if (message.t == 'start') {
-    this._beginMatch(message.seed, message.player);
+    this._beginMatch(message.seed, message.player, message.players);
   }
   else if (message.t == 'i') {
-    this._remoteQueue[message.n] = message.e;
+    if (this._remoteQueues[message.p] !== undefined) {
+      this._remoteQueues[message.p][message.n] = message.e;
+    }
   }
   else if (message.t == 'peer_left') {
     this._endSession();
   }
 };
 
-NetworkSession.prototype._beginMatch = function (seed, playerNumber) {
+NetworkSession.prototype._beginMatch = function (seed, playerNumber, playersCount) {
   this._playerNumber = playerNumber;
+  this._playersCount = playersCount === undefined ? 2 : playersCount;
   this._currentTick = 0;
   this._localQueue = {};
-  this._remoteQueue = {};
+  this._remoteQueues = {};
+  for (var p = 1; p <= this._playersCount; ++p) {
+    if (p != this._playerNumber) {
+      this._remoteQueues[p] = {};
+    }
+  }
   for (var t = 0; t < NetworkSession.INPUT_DELAY; ++t) {
     this._localQueue[t] = [];
-    this._remoteQueue[t] = [];
+    for (var q in this._remoteQueues) {
+      this._remoteQueues[q][t] = [];
+    }
   }
   this._keyboard.drainEvents();
   Random.setSeed(seed);
-  this._sceneManager.toGameScene(undefined, new Player(), new Player(Tank.Type.PLAYER_2));
+  var hasEnemyPlayer = this._playersCount == 3;
+  this._sceneManager.toGameScene(undefined, new Player(), new Player(Tank.Type.PLAYER_2), hasEnemyPlayer);
   this._state = NetworkSession.State.PLAYING;
 };
 
@@ -130,8 +162,20 @@ NetworkSession.prototype.update = function (ctx) {
 };
 
 NetworkSession.prototype._updateMenu = function (ctx) {
-  var cancelled = this._keyboard.drainEvents().some(function (event) {
-    return event.name == Keyboard.Event.KEY_PRESSED && event.key == Keyboard.Key.SELECT;
+  var self = this;
+  var cancelled = false;
+  this._keyboard.drainEvents().forEach(function (event) {
+    if (event.name != Keyboard.Event.KEY_PRESSED) {
+      return;
+    }
+    if (event.key == Keyboard.Key.SELECT) {
+      cancelled = true;
+    }
+    else if (event.key == Keyboard.Key.START &&
+             self._state == NetworkSession.State.LOBBY &&
+             self._lobbyPosition == 1 && self._lobbyCount >= 2) {
+      self._send({ t: 'begin' });
+    }
   });
   if (cancelled) {
     this._endSession();
@@ -140,9 +184,20 @@ NetworkSession.prototype._updateMenu = function (ctx) {
   this._drawStatus(ctx);
 };
 
+NetworkSession.prototype._canAdvance = function () {
+  if (this._localQueue[this._currentTick] === undefined) {
+    return false;
+  }
+  for (var p in this._remoteQueues) {
+    if (this._remoteQueues[p][this._currentTick] === undefined) {
+      return false;
+    }
+  }
+  return true;
+};
+
 NetworkSession.prototype._updatePlaying = function (ctx) {
-  if (this._localQueue[this._currentTick] !== undefined &&
-      this._remoteQueue[this._currentTick] !== undefined) {
+  if (this._canAdvance()) {
     this._scheduleLocalInput();
     this._fireTickEvents();
     this._sceneManager.update();
@@ -166,20 +221,22 @@ NetworkSession.prototype._scheduleLocalInput = function () {
     }
   });
   this._localQueue[futureTick] = actions;
-  this._send({ t: 'i', n: futureTick, e: actions });
+  this._send({ t: 'i', p: this._playerNumber, n: futureTick, e: actions });
 };
 
 NetworkSession.prototype._fireTickEvents = function () {
-  // Both clients fire player 1's events before player 2's so the
-  // simulations process identical event sequences.
-  var mine = this._localQueue[this._currentTick];
-  var theirs = this._remoteQueue[this._currentTick];
-  var first = this._playerNumber == 1 ? mine : theirs;
-  var second = this._playerNumber == 1 ? theirs : mine;
-  this._firePlayerEvents(first, 1);
-  this._firePlayerEvents(second, 2);
+  // Every client fires the players' events in the same order (1, 2, 3) so
+  // the simulations process identical event sequences.
+  for (var p = 1; p <= this._playersCount; ++p) {
+    var actions = p == this._playerNumber ?
+      this._localQueue[this._currentTick] :
+      this._remoteQueues[p][this._currentTick];
+    this._firePlayerEvents(actions, p);
+  }
   delete this._localQueue[this._currentTick];
-  delete this._remoteQueue[this._currentTick];
+  for (var q in this._remoteQueues) {
+    delete this._remoteQueues[q][this._currentTick];
+  }
 };
 
 NetworkSession.prototype._firePlayerEvents = function (actions, playerNumber) {
@@ -222,7 +279,26 @@ NetworkSession.prototype._drawStatus = function (ctx) {
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
   ctx.fillStyle = "#ffffff";
-  ctx.fillText("ONLINE", 208, 160);
-  ctx.fillText(this._statusText, (ctx.canvas.width - this._statusText.length * 16) / 2, 224);
-  ctx.fillText("PRESS CTRL TO CANCEL", 96, 320);
+  this._drawCentered(ctx, "ONLINE", 128);
+
+  if (this._state == NetworkSession.State.LOBBY) {
+    this._drawCentered(ctx, "PLAYERS " + this._lobbyCount + "/" + this._lobbyMax, 192);
+    var role = this._lobbyPosition == 3 ? "YOU ARE THE ENEMY" : "YOU ARE TANK " + this._lobbyPosition;
+    this._drawCentered(ctx, role, 224);
+    this._drawCentered(ctx, "3RD PLAYER JOINS AS THE ENEMY", 256);
+    if (this._lobbyPosition == 1 && this._lobbyCount >= 2) {
+      this._drawCentered(ctx, "PRESS ENTER TO START", 304);
+    }
+    else {
+      this._drawCentered(ctx, "WAITING FOR PLAYERS...", 304);
+    }
+  }
+  else {
+    this._drawCentered(ctx, this._statusText, 224);
+  }
+  this._drawCentered(ctx, "PRESS CTRL TO CANCEL", 368);
+};
+
+NetworkSession.prototype._drawCentered = function (ctx, text, y) {
+  ctx.fillText(text, Math.floor((ctx.canvas.width - text.length * 16) / 2), y);
 };

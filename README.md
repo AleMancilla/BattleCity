@@ -21,8 +21,15 @@ over a WebSocket relay. To play online, run the bundled server instead:
     npm install
     npm start
 
-Both players then open `http://<host>:8080` and choose ONLINE — the first two
-connections are paired into a match. Each player controls their tank with the
-arrow keys (or WASD) and shoots with Space (or F).
+Players then open `http://<host>:8080` and choose ONLINE. Up to 3 players
+share a match: the first two are the tanks, and an optional 3rd player is
+**the enemy** — they take control of one of the attacking bots (marked with a
+blinking white outline that only the enemy player can see; to the tanks the
+human is indistinguishable from the AI) and respawn as the next bot each time
+they die,
+cycling through every enemy type, flashing reds included. The match starts
+automatically when 3 players are in the lobby, or the first player can press
+Enter to start with just 2. Everyone plays with the arrow keys (or WASD) and
+shoots with Space (or F).
 
 ![Screenshot of the Battle City game](screenshot.jpg)

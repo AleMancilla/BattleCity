@@ -15,6 +15,11 @@ SpriteController.prototype.setMovementKeys = function (keys) {
   this._moveKeys = keys;
 };
 
+SpriteController.prototype.destroy = function () {
+  this._pauseListener.destroy();
+  this._eventManager.removeSubscriber(this);
+};
+
 SpriteController.prototype.notify = function (event) {
   if (event.name == Keyboard.Event.KEY_PRESSED && !this._pauseListener.isPaused()) {
     this.keyPressed(event.key);

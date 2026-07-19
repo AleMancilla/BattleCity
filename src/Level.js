@@ -1,4 +1,4 @@
-function Level(sceneManager, stageNumber, player, player2) {
+function Level(sceneManager, stageNumber, player, player2, hasEnemyPlayer) {
   Gamefield.call(this, sceneManager);
 
   var self = this;
@@ -34,6 +34,17 @@ function Level(sceneManager, stageNumber, player, player2) {
   
   this._aiControllersContainer = new AITankControllerContainer(this._eventManager);
   this._aiTankControllerFactory = new AITankControllerFactory(this._eventManager, this._spriteContainer);
+
+  // Created after the AI factory on purpose: it must receive ENEMY_CREATED
+  // second, so the AI controller already exists and can be replaced.
+  this._hasEnemyPlayer = hasEnemyPlayer === true;
+  this._enemyPlayerControllerFactory = null;
+  this._enemyPlayerView = null;
+  if (this._hasEnemyPlayer) {
+    this._enemyPlayerControllerFactory = new EnemyPlayerControllerFactory(this._eventManager);
+    this._enemyPlayerControllerFactory.setAIControllersContainer(this._aiControllersContainer);
+    this._enemyPlayerView = new EnemyPlayerView(this._enemyPlayerControllerFactory);
+  }
 
   this._enemyFactory = new EnemyFactory(this._eventManager);
   this._enemyFactory.setPositions([
@@ -86,12 +97,12 @@ function Level(sceneManager, stageNumber, player, player2) {
   this._gameOverScript.setActive(false);
   this._gameOverScript.enqueue(new MoveFn(this._gameOverMessage, 'y', 213, 100, this._gameOverScript));
   this._gameOverScript.enqueue(new Delay(this._gameOverScript, 50));
-  this._gameOverScript.enqueue({execute: function () { sceneManager.toStageStatisticsScene(stageNumber, self._player, true, self._player2); }});
+  this._gameOverScript.enqueue({execute: function () { sceneManager.toStageStatisticsScene(stageNumber, self._player, true, self._player2, self._hasEnemyPlayer); }});
 
   this._levelTransitionScript = new Script();
   this._levelTransitionScript.setActive(false);
   this._levelTransitionScript.enqueue(new Delay(this._levelTransitionScript, 200));
-  this._levelTransitionScript.enqueue({execute: function () { sceneManager.toStageStatisticsScene(stageNumber, self._player, false, self._player2); }});
+  this._levelTransitionScript.enqueue({execute: function () { sceneManager.toStageStatisticsScene(stageNumber, self._player, false, self._player2, self._hasEnemyPlayer); }});
   
   this._loadStage(this._stage);
 }
@@ -107,6 +118,9 @@ Level.prototype.update = function () {
   this._pause.update();
   this._gameOverScript.update();
   this._levelTransitionScript.update();
+  if (this._enemyPlayerView !== null) {
+    this._enemyPlayerView.update();
+  }
 };
 
 Level.prototype.draw = function (ctx) {
@@ -114,6 +128,9 @@ Level.prototype.draw = function (ctx) {
     return;
   }
   Gamefield.prototype.draw.call(this, ctx);
+  if (this._enemyPlayerView !== null) {
+    this._enemyPlayerView.draw(ctx);
+  }
   this._enemyFactoryView.draw(ctx);
   this._pause.draw(ctx);
   this._livesView.draw(ctx);

@@ -39,15 +39,35 @@ describe("NetworkSession", function () {
       expect(NetworkSession.actionToKey('shoot', 2)).toEqual(Keyboard.Key.F);
     });
 
+    it("maps actions to player 3 (enemy) virtual keys", function () {
+      expect(NetworkSession.actionToKey('left', 3)).toEqual(Keyboard.Key.J);
+      expect(NetworkSession.actionToKey('right', 3)).toEqual(Keyboard.Key.L);
+      expect(NetworkSession.actionToKey('up', 3)).toEqual(Keyboard.Key.I);
+      expect(NetworkSession.actionToKey('down', 3)).toEqual(Keyboard.Key.K);
+      expect(NetworkSession.actionToKey('shoot', 3)).toEqual(Keyboard.Key.H);
+    });
+
     it("maps start to the shared START key", function () {
       expect(NetworkSession.actionToKey('start', 1)).toEqual(Keyboard.Key.START);
       expect(NetworkSession.actionToKey('start', 2)).toEqual(Keyboard.Key.START);
+      expect(NetworkSession.actionToKey('start', 3)).toEqual(Keyboard.Key.START);
     });
 
-    it("round-trips every action through both players", function () {
+    it("round-trips tank actions through both tank players", function () {
       ['left', 'right', 'up', 'down', 'shoot'].forEach(function (action) {
         expect(NetworkSession.keyToAction(NetworkSession.actionToKey(action, 1))).toEqual(action);
         expect(NetworkSession.keyToAction(NetworkSession.actionToKey(action, 2))).toEqual(action);
+      });
+    });
+
+    it("gives each player distinct virtual keys", function () {
+      var keys = {};
+      [1, 2, 3].forEach(function (player) {
+        ['left', 'right', 'up', 'down', 'shoot'].forEach(function (action) {
+          var key = NetworkSession.actionToKey(action, player);
+          expect(keys[key]).toBeUndefined();
+          keys[key] = true;
+        });
       });
     });
   });
