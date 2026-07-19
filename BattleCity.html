@@ -114,6 +114,10 @@
       var ctx = createCanvasContext();
       ctx.font = "16px prstart"
       
+      // Local entropy for solo play; a future network layer replaces this
+      // with the match seed agreed between players.
+      Random.setSeed(Date.now());
+
       var eventManager = new EventManager();
       var keyboard = new Keyboard(eventManager);
       var sceneManager = new SceneManager(eventManager);
