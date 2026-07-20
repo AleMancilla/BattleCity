@@ -75,6 +75,7 @@
   <script type="text/javascript" src="src/OnlineMenuItem.js"></script>
   <script type="text/javascript" src="src/OnlineLobby.js"></script>
   <script type="text/javascript" src="src/GameLink.js"></script>
+  <script type="text/javascript" src="src/NetStats.js"></script>
   <script type="text/javascript" src="src/NetworkSession.js"></script>
   <script type="text/javascript" src="src/EnemyPlayerController.js"></script>
   <script type="text/javascript" src="src/EnemyPlayerControllerFactory.js"></script>
@@ -156,6 +157,10 @@
       if (GameLink.isSupported()) {
         networkSession.setGameLink(new GameLink());
       }
+
+      var netStats = new NetStats();
+      netStats.attach(document.body);
+      networkSession.setNetStats(netStats);
 
       sceneManager.toLoadingScene();
 

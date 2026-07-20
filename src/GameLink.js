@@ -18,7 +18,8 @@ function GameLink(config) {
   this._playersCount = 0;
   this._send = null;      // signaling sender (over the relay)
   this._onInput = null;   // called with each received input message
-  this._peers = {};       // number -> { pc, channel }
+  this._peers = {};       // number -> { pc, channel, rtt }
+  this._pingTimer = null;
 }
 
 GameLink.isSupported = function () {
@@ -44,15 +45,39 @@ GameLink.prototype.start = function (myNumber, playersCount, sendSignal, onInput
       this._offerTo(p);   // lower number initiates; the peer waits for us
     }
   }
+  var self = this;
+  this._pingTimer = setInterval(function () { self._pingPeers(); }, 1000);
 };
 
 GameLink.prototype.stop = function () {
+  if (this._pingTimer !== null) {
+    clearInterval(this._pingTimer);
+    this._pingTimer = null;
+  }
   for (var number in this._peers) {
     this._closePeer(parseInt(number, 10));
   }
   this._peers = {};
   this._send = null;
   this._onInput = null;
+};
+
+// Round trip to the worst-connected peer, in milliseconds (0 if unknown).
+GameLink.prototype.getRtt = function () {
+  var max = 0;
+  for (var number in this._peers) {
+    if (this._peers[number].rtt) { max = Math.max(max, this._peers[number].rtt); }
+  }
+  return max;
+};
+
+GameLink.prototype._pingPeers = function () {
+  for (var number in this._peers) {
+    var channel = this._peers[number].channel;
+    if (channel && channel.readyState === 'open') {
+      channel.send(JSON.stringify({ t: 'plink-ping', ts: Date.now() }));
+    }
+  }
 };
 
 // Broadcast an input message to every connected peer.
@@ -94,7 +119,7 @@ GameLink.prototype._offerTo = function (number) {
   var self = this;
   var peer = this._createPeer(number);
   peer.channel = peer.pc.createDataChannel('inputs', { ordered: false });
-  this._setupChannel(peer.channel);
+  this._setupChannel(peer.channel, number);
   peer.pc.createOffer().then(function (offer) {
     return peer.pc.setLocalDescription(offer);
   }).then(function () {
@@ -107,7 +132,7 @@ GameLink.prototype._onOffer = function (from, sdp) {
   var peer = this._peers[from] || this._createPeer(from);
   peer.pc.ondatachannel = function (event) {
     peer.channel = event.channel;
-    self._setupChannel(event.channel);
+    self._setupChannel(event.channel, from);
   };
   peer.pc.setRemoteDescription(sdp).then(function () {
     return peer.pc.createAnswer();
@@ -140,16 +165,28 @@ GameLink.prototype._createPeer = function (number) {
       self._send({ t: 'p2p-ice', from: self._myNumber, to: number, candidate: event.candidate });
     }
   };
-  var peer = { pc: pc, channel: null };
+  var peer = { pc: pc, channel: null, rtt: 0 };
   this._peers[number] = peer;
   return peer;
 };
 
-GameLink.prototype._setupChannel = function (channel) {
+GameLink.prototype._setupChannel = function (channel, number) {
   var self = this;
   channel.onmessage = function (event) {
     var message;
     try { message = JSON.parse(event.data); } catch (e) { return; }
+    if (message.t === 'plink-ping') {
+      channel.send(JSON.stringify({ t: 'plink-pong', ts: message.ts }));
+      return;
+    }
+    if (message.t === 'plink-pong') {
+      var peer = self._peers[number];
+      if (peer) {
+        var rtt = Date.now() - message.ts;
+        peer.rtt = peer.rtt ? Math.round(0.7 * peer.rtt + 0.3 * rtt) : rtt;
+      }
+      return;
+    }
     if (self._onInput) {
       self._onInput(message);
     }

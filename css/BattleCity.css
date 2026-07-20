@@ -58,6 +58,28 @@ body {
   display: none;
 }
 
+/* ---- Connection stats readout ---- */
+#net-stats {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  pointer-events: none;
+}
+.net-stats-text {
+  font-family: prstart;
+  font-size: 10px;
+  padding: 5px 7px;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.6);
+}
+.net-stats-text.net-ok {
+  color: #63c76a;
+}
+.net-stats-text.net-warn {
+  color: #f2b233;
+}
+
 /* ---- Online lobby overlay ---- */
 #online-lobby {
   position: fixed;
