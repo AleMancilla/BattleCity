@@ -19,10 +19,8 @@ function NetworkSession(keyboard, sceneManager, voiceChat) {
   this._currentTick = 0;
   this._localQueue = {};
   this._remoteQueues = {};
-  this._lobbyCount = 0;
-  this._lobbyPosition = 0;
-  this._lobbyMax = 3;
-  this._statusText = '';
+  this._lobby = null;
+  this._pendingRoomCode = null;
 }
 
 // Ticks of input latency hidden by the protocol (3 ticks = 60 ms at 50 FPS).
@@ -31,7 +29,8 @@ NetworkSession.INPUT_DELAY = 3;
 NetworkSession.State = {};
 NetworkSession.State.IDLE = 'idle';
 NetworkSession.State.CONNECTING = 'connecting';
-NetworkSession.State.LOBBY = 'lobby';
+NetworkSession.State.BROWSING = 'browsing';   // choosing/creating a room
+NetworkSession.State.WAITING = 'waiting';      // in a room, before the match
 NetworkSession.State.PLAYING = 'playing';
 
 // Singleton wired up in BattleCity.html; used by OnlineMenuItem.
@@ -85,17 +84,33 @@ NetworkSession.prototype.getPlayerNumber = function () {
   return this._playerNumber;
 };
 
-NetworkSession.prototype.start = function () {
+NetworkSession.prototype.setLobby = function (lobby) {
+  this._lobby = lobby;
+};
+
+// Connect and open the lobby. If roomCode is given (e.g. from a shared link),
+// join that room directly instead of showing the browser.
+NetworkSession.prototype.start = function (roomCode) {
   if (this.isActive()) {
     return;
   }
   var self = this;
+  this._pendingRoomCode = roomCode || null;
   this._state = NetworkSession.State.CONNECTING;
-  this._statusText = 'CONNECTING...';
 
   var protocol = window.location.protocol == 'https:' ? 'wss://' : 'ws://';
   this._socket = new WebSocket(protocol + window.location.host);
 
+  this._socket.onopen = function () {
+    if (self._pendingRoomCode) {
+      self._state = NetworkSession.State.BROWSING;
+      self.joinRoom(self._pendingRoomCode);
+      self._pendingRoomCode = null;
+    } else {
+      self._state = NetworkSession.State.BROWSING;
+      if (self._lobby) { self._lobby.showBrowse(); }
+    }
+  };
   this._socket.onmessage = function (event) {
     self._onMessage(JSON.parse(event.data));
   };
@@ -107,18 +122,59 @@ NetworkSession.prototype.start = function () {
   };
 };
 
+// --- Room commands (called by the lobby UI) ---
+
+NetworkSession.prototype.quickJoin = function () {
+  this._send({ t: 'quick' });
+};
+
+NetworkSession.prototype.createRoom = function (isPublic) {
+  this._send({ t: 'create', public: !!isPublic });
+};
+
+NetworkSession.prototype.joinRoom = function (code) {
+  this._send({ t: 'join', code: code });
+};
+
+NetworkSession.prototype.refreshRooms = function () {
+  this._send({ t: 'list' });
+};
+
+NetworkSession.prototype.hostStart = function () {
+  this._send({ t: 'begin' });
+};
+
+NetworkSession.prototype.leaveRoom = function () {
+  this._send({ t: 'leave' });
+  this._state = NetworkSession.State.BROWSING;
+  if (this._lobby) { this._lobby.showBrowse(); }
+};
+
+NetworkSession.prototype.cancel = function () {
+  this._endSession();
+};
+
 NetworkSession.prototype._onMessage = function (message) {
   if (this._voiceChat && VoiceChat.isSignal(message)) {
     this._voiceChat.handleSignal(message);
     return;
   }
-  if (message.t == 'lobby') {
-    this._state = NetworkSession.State.LOBBY;
-    this._lobbyCount = message.count;
-    this._lobbyPosition = message.position;
-    this._lobbyMax = message.max;
+  if (message.t == 'rooms') {
+    if (this._lobby) { this._lobby.setRooms(message.rooms); }
+  }
+  else if (message.t == 'joined') {
+    this._state = NetworkSession.State.WAITING;
+    if (this._lobby) { this._lobby.showWaiting(message); }
+  }
+  else if (message.t == 'room_update') {
+    if (this._lobby) { this._lobby.updateWaiting(message); }
+  }
+  else if (message.t == 'error') {
+    this._state = NetworkSession.State.BROWSING;
+    if (this._lobby) { this._lobby.showError(message.reason); }
   }
   else if (message.t == 'start') {
+    if (this._lobby) { this._lobby.hide(); }
     this._beginMatch(message.seed, message.player, message.players);
   }
   else if (message.t == 'i') {
@@ -165,31 +221,12 @@ NetworkSession.prototype.update = function (ctx) {
     this._updatePlaying(ctx);
   }
   else {
-    this._updateMenu(ctx);
+    // Connecting / browsing / waiting: the HTML lobby overlay is the UI, so
+    // just keep the canvas blank behind it and discard any stray key input.
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    this._keyboard.drainEvents();
   }
-};
-
-NetworkSession.prototype._updateMenu = function (ctx) {
-  var self = this;
-  var cancelled = false;
-  this._keyboard.drainEvents().forEach(function (event) {
-    if (event.name != Keyboard.Event.KEY_PRESSED) {
-      return;
-    }
-    if (event.key == Keyboard.Key.SELECT) {
-      cancelled = true;
-    }
-    else if (event.key == Keyboard.Key.START &&
-             self._state == NetworkSession.State.LOBBY &&
-             self._lobbyPosition == 1 && self._lobbyCount >= 2) {
-      self._send({ t: 'begin' });
-    }
-  });
-  if (cancelled) {
-    this._endSession();
-    return;
-  }
-  this._drawStatus(ctx);
 };
 
 NetworkSession.prototype._canAdvance = function () {
@@ -280,36 +317,10 @@ NetworkSession.prototype._endSession = function () {
     this._socket.close();
     this._socket = null;
   }
+  if (this._lobby) {
+    this._lobby.hide();
+  }
   if (!(this._sceneManager.getScene() instanceof MainMenuScene)) {
     this._sceneManager.toMainMenuScene(true);
   }
-};
-
-NetworkSession.prototype._drawStatus = function (ctx) {
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-  ctx.fillStyle = "#ffffff";
-  this._drawCentered(ctx, "ONLINE", 128);
-
-  if (this._state == NetworkSession.State.LOBBY) {
-    this._drawCentered(ctx, "PLAYERS " + this._lobbyCount + "/" + this._lobbyMax, 192);
-    var role = this._lobbyPosition == 3 ? "YOU ARE THE ENEMY" : "YOU ARE TANK " + this._lobbyPosition;
-    this._drawCentered(ctx, role, 224);
-    this._drawCentered(ctx, "3RD PLAYER JOINS AS THE ENEMY", 256);
-    if (this._lobbyPosition == 1 && this._lobbyCount >= 2) {
-      this._drawCentered(ctx, "PRESS ENTER TO START", 304);
-    }
-    else {
-      this._drawCentered(ctx, "WAITING FOR PLAYERS...", 304);
-    }
-  }
-  else {
-    this._drawCentered(ctx, this._statusText, 224);
-  }
-  this._drawCentered(ctx, "PRESS CTRL TO CANCEL", 368);
-};
-
-NetworkSession.prototype._drawCentered = function (ctx, text, y) {
-  ctx.fillText(text, Math.floor((ctx.canvas.width - text.length * 16) / 2), y);
 };

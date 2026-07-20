@@ -21,7 +21,14 @@ over a WebSocket relay. To play online, run the bundled server instead:
     npm install
     npm start
 
-Players then open `http://<host>:8080` and choose ONLINE. Up to 3 players
+Players then open `http://<host>:8080` and choose ONLINE. This opens the room
+browser, where you can **quick join** (drop into an open public room, or start
+a fresh one if none are open), **create** a public or private room, **join by
+code**, or tap a room in the public list. Each room holds up to 3 players and
+shows a shareable code (and a `?room=CODE` link — open it to jump straight in).
+Public incomplete rooms are listed for strangers to join; private rooms are
+reachable only by their code. A room starts when it fills up, or when its host
+presses START. Up to 3 players
 share a match: the first two are the tanks, and an optional 3rd player is
 **the enemy** — they take control of one of the attacking bots (marked with a
 blinking white outline that only the enemy player can see; to the tanks the
