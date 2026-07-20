@@ -21,10 +21,24 @@ function NetworkSession(keyboard, sceneManager, voiceChat) {
   this._remoteQueues = {};
   this._lobby = null;
   this._pendingRoomCode = null;
+  this._gameLink = null;            // P2P input mesh, set via setGameLink
+  this._inputDelay = NetworkSession.INPUT_DELAY;
+  this._matchStartTime = null;
+  this._pingTimer = null;
+  this._rtt = 0;
 }
 
-// Ticks of input latency hidden by the protocol (3 ticks = 60 ms at 50 FPS).
-NetworkSession.INPUT_DELAY = 3;
+// Default ticks of input latency hidden by the protocol. The server sizes
+// the real per-match delay to the measured round-trip latency (see 'start').
+NetworkSession.INPUT_DELAY = 4;
+
+// Milliseconds per simulation tick (50 FPS).
+NetworkSession.TICK_MS = 20;
+
+// Most ticks a single frame may advance while catching up after a stall. This
+// lets the sim recover a latency deficit instead of accumulating it forever,
+// without a huge one-frame burst.
+NetworkSession.MAX_CATCHUP = 10;
 
 NetworkSession.State = {};
 NetworkSession.State.IDLE = 'idle';
@@ -88,6 +102,10 @@ NetworkSession.prototype.setLobby = function (lobby) {
   this._lobby = lobby;
 };
 
+NetworkSession.prototype.setGameLink = function (gameLink) {
+  this._gameLink = gameLink;
+};
+
 // Connect and open the lobby. If roomCode is given (e.g. from a shared link),
 // join that room directly instead of showing the browser.
 NetworkSession.prototype.start = function (roomCode) {
@@ -102,6 +120,7 @@ NetworkSession.prototype.start = function (roomCode) {
   this._socket = new WebSocket(protocol + window.location.host);
 
   this._socket.onopen = function () {
+    self._startPinging();
     if (self._pendingRoomCode) {
       self._state = NetworkSession.State.BROWSING;
       self.joinRoom(self._pendingRoomCode);
@@ -159,6 +178,14 @@ NetworkSession.prototype._onMessage = function (message) {
     this._voiceChat.handleSignal(message);
     return;
   }
+  if (this._gameLink && GameLink.isSignal(message)) {
+    this._gameLink.handleSignal(message);
+    return;
+  }
+  if (message.t == 'pong') {
+    this._onPong(message.ts);
+    return;
+  }
   if (message.t == 'rooms') {
     if (this._lobby) { this._lobby.setRooms(message.rooms); }
   }
@@ -175,22 +202,55 @@ NetworkSession.prototype._onMessage = function (message) {
   }
   else if (message.t == 'start') {
     if (this._lobby) { this._lobby.hide(); }
-    this._beginMatch(message.seed, message.player, message.players);
+    this._beginMatch(message.seed, message.player, message.players, message.delay);
   }
   else if (message.t == 'i') {
-    if (this._remoteQueues[message.p] !== undefined) {
-      this._remoteQueues[message.p][message.n] = message.e;
-    }
+    this._receiveInput(message.p, message.n, message.e);
   }
   else if (message.t == 'peer_left') {
     this._endSession();
   }
 };
 
-NetworkSession.prototype._beginMatch = function (seed, playerNumber, playersCount) {
+// Store a peer's input for a future tick. Idempotent and guarded against
+// stale arrivals, so an input may safely arrive over both the relay and the
+// P2P channel (whichever gets there first wins; a late duplicate is dropped).
+NetworkSession.prototype._receiveInput = function (p, n, e) {
+  if (this._remoteQueues[p] !== undefined && n >= this._currentTick) {
+    this._remoteQueues[p][n] = e;
+  }
+};
+
+NetworkSession.prototype._onPong = function (ts) {
+  var rtt = Date.now() - ts;
+  this._rtt = this._rtt ? Math.round(0.7 * this._rtt + 0.3 * rtt) : rtt;
+  this._send({ t: 'rtt', ms: this._rtt });
+};
+
+NetworkSession.prototype._startPinging = function () {
+  var self = this;
+  this._stopPinging();
+  var ping = function () { self._send({ t: 'ping', ts: Date.now() }); };
+  ping();
+  this._pingTimer = setInterval(ping, 1000);
+};
+
+NetworkSession.prototype._stopPinging = function () {
+  if (this._pingTimer !== null) {
+    clearInterval(this._pingTimer);
+    this._pingTimer = null;
+  }
+};
+
+NetworkSession.prototype._beginMatch = function (seed, playerNumber, playersCount, delay) {
+  this._stopPinging();
   this._playerNumber = playerNumber;
   this._playersCount = playersCount === undefined ? 2 : playersCount;
+  // The server sizes the delay to the round-trip latency; all clients get the
+  // same value so the bootstrap (below) stays consistent across the match.
+  this._inputDelay = delay || NetworkSession.INPUT_DELAY;
   this._currentTick = 0;
+  this._matchStartTime = null;
   this._localQueue = {};
   this._remoteQueues = {};
   for (var p = 1; p <= this._playersCount; ++p) {
@@ -198,7 +258,7 @@ NetworkSession.prototype._beginMatch = function (seed, playerNumber, playersCoun
       this._remoteQueues[p] = {};
     }
   }
-  for (var t = 0; t < NetworkSession.INPUT_DELAY; ++t) {
+  for (var t = 0; t < this._inputDelay; ++t) {
     this._localQueue[t] = [];
     for (var q in this._remoteQueues) {
       this._remoteQueues[q][t] = [];
@@ -209,6 +269,11 @@ NetworkSession.prototype._beginMatch = function (seed, playerNumber, playersCoun
   var hasEnemyPlayer = this._playersCount == 3;
   this._sceneManager.toGameScene(undefined, new Player(), new Player(Tank.Type.PLAYER_2), hasEnemyPlayer);
   this._state = NetworkSession.State.PLAYING;
+  var self = this;
+  if (this._gameLink) {
+    this._gameLink.start(this._playerNumber, this._playersCount, this._send.bind(this),
+      function (msg) { self._receiveInput(msg.p, msg.n, msg.e); });
+  }
   if (this._voiceChat) {
     this._voiceChat.onMatchStart(this._playerNumber, this._playersCount, this._send.bind(this));
   }
@@ -242,11 +307,23 @@ NetworkSession.prototype._canAdvance = function () {
 };
 
 NetworkSession.prototype._updatePlaying = function (ctx) {
-  if (this._canAdvance()) {
+  var now = Date.now();
+  if (this._matchStartTime === null) {
+    this._matchStartTime = now;
+  }
+  // Pace to the wall clock: advance toward the tick that real time is at, and
+  // process several ticks in one frame (capped) when catching up after a
+  // stall — but never run ahead of real time in steady state.
+  var targetTick = Math.floor((now - this._matchStartTime) / NetworkSession.TICK_MS);
+  var processed = 0;
+  while (this._currentTick < targetTick &&
+         processed < NetworkSession.MAX_CATCHUP &&
+         this._canAdvance()) {
     this._scheduleLocalInput();
     this._fireTickEvents();
     this._sceneManager.update();
     this._currentTick++;
+    processed++;
 
     if (this._sceneManager.getScene() instanceof MainMenuScene) {
       this._endSession();
@@ -257,7 +334,7 @@ NetworkSession.prototype._updatePlaying = function (ctx) {
 };
 
 NetworkSession.prototype._scheduleLocalInput = function () {
-  var futureTick = this._currentTick + NetworkSession.INPUT_DELAY;
+  var futureTick = this._currentTick + this._inputDelay;
   var actions = [];
   this._keyboard.drainEvents().forEach(function (event) {
     var action = NetworkSession.keyToAction(event.key);
@@ -266,7 +343,13 @@ NetworkSession.prototype._scheduleLocalInput = function () {
     }
   });
   this._localQueue[futureTick] = actions;
-  this._send({ t: 'i', p: this._playerNumber, n: futureTick, e: actions });
+  var message = { t: 'i', p: this._playerNumber, n: futureTick, e: actions };
+  // Send over the relay (always) and P2P (when connected). The receiver keeps
+  // whichever arrives first, so P2P gives the speed and the relay the safety.
+  this._send(message);
+  if (this._gameLink) {
+    this._gameLink.send(message);
+  }
 };
 
 NetworkSession.prototype._fireTickEvents = function () {
@@ -308,6 +391,10 @@ NetworkSession.prototype._endSession = function () {
     return;
   }
   this._state = NetworkSession.State.IDLE;
+  this._stopPinging();
+  if (this._gameLink) {
+    this._gameLink.stop();
+  }
   if (this._voiceChat) {
     this._voiceChat.onMatchEnd();
   }

@@ -133,17 +133,30 @@ function joinRoom(socket, room) {
   }
 }
 
+// Size the lockstep input delay to the slowest player's measured round trip,
+// so inputs arrive on time without needlessly delaying low-latency games.
+// All members get the same value, keeping the tick bootstrap consistent.
+function computeDelay(room) {
+  var maxRtt = 0;
+  room.members.forEach(function (socket) {
+    if (socket.rtt > maxRtt) { maxRtt = socket.rtt; }
+  });
+  var ticks = Math.ceil(maxRtt / 20) + 2; // ~20 ms per tick, plus a margin
+  return Math.max(3, Math.min(12, ticks));
+}
+
 function startRoom(room) {
   if (room.started || room.members.length < 2) {
     return;
   }
   room.started = true;
   var seed = (Math.random() * 0xFFFFFFFF) >>> 0;
+  var delay = computeDelay(room);
   room.members.forEach(function (socket, i) {
-    send(socket, { t: 'start', seed: seed, player: i + 1, players: room.members.length });
+    send(socket, { t: 'start', seed: seed, player: i + 1, players: room.members.length, delay: delay });
   });
   broadcastRooms();
-  console.log('room ' + room.code + ' started: ' + room.members.length + ' players');
+  console.log('room ' + room.code + ' started: ' + room.members.length + ' players, delay=' + delay);
 }
 
 function leaveRoom(socket) {
@@ -183,6 +196,7 @@ function pickQuickRoom() {
 wss.on('connection', function (socket) {
   socket.isAlive = true;
   socket.room = null;
+  socket.rtt = 80; // conservative default until the client measures it
   socket.on('pong', function () { socket.isAlive = true; });
 
   send(socket, { t: 'rooms', rooms: publicRoomList() });
@@ -230,6 +244,12 @@ wss.on('connection', function (socket) {
     else if (message.t === 'leave') {
       leaveRoom(socket);
       send(socket, { t: 'rooms', rooms: publicRoomList() });
+    }
+    else if (message.t === 'ping') {
+      send(socket, { t: 'pong', ts: message.ts });
+    }
+    else if (message.t === 'rtt') {
+      if (typeof message.ms === 'number') { socket.rtt = message.ms; }
     }
     else if (socket.room && socket.room.started) {
       // In-match traffic (inputs, voice signaling): relay to the other members.

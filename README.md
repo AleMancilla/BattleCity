@@ -38,6 +38,16 @@ starts automatically when 3 players are in the lobby, or the first player can
 press Enter to start with just 2. Everyone plays with the arrow keys (or WASD)
 and shoots with Space (or F).
 
+### Netcode
+
+The match uses deterministic lockstep. To keep it smooth over the internet:
+inputs travel **peer-to-peer over WebRTC data channels** (the relay is a
+parallel backup, so a peer that can't reach P2P still gets every input); the
+**input delay is sized to the measured round-trip latency** at match start; and
+the loop **catches up after a stall** instead of accumulating lag. The relay
+server only forwards tiny input/signaling messages, so player count is not the
+bottleneck — latency is.
+
 ### Voice chat
 
 During an online match a **VOICE** button appears (top-right). Each player can
