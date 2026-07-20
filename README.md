@@ -48,6 +48,12 @@ the loop **catches up after a stall** instead of accumulating lag. The relay
 server only forwards tiny input/signaling messages, so player count is not the
 bottleneck — latency is.
 
+A small readout in the top-left during a match reports the connection: the
+transport (`P2P` when inputs go peer-to-peer, `RELAY` when they fall back
+through the server), the round-trip latency in ms, the negotiated input delay
+(`dN`), and a `LAG N` marker if the simulation is running behind real time.
+Green means healthy; amber means P2P didn't connect or the game is stuttering.
+
 ### Voice chat
 
 During an online match a **VOICE** button appears (top-right). Each player can

@@ -22,10 +22,13 @@ function NetworkSession(keyboard, sceneManager, voiceChat) {
   this._lobby = null;
   this._pendingRoomCode = null;
   this._gameLink = null;            // P2P input mesh, set via setGameLink
+  this._netStats = null;            // connection HUD, set via setNetStats
   this._inputDelay = NetworkSession.INPUT_DELAY;
   this._matchStartTime = null;
   this._pingTimer = null;
   this._rtt = 0;
+  this._behind = 0;
+  this._lastStatsUpdate = 0;
 }
 
 // Default ticks of input latency hidden by the protocol. The server sizes
@@ -104,6 +107,24 @@ NetworkSession.prototype.setLobby = function (lobby) {
 
 NetworkSession.prototype.setGameLink = function (gameLink) {
   this._gameLink = gameLink;
+};
+
+NetworkSession.prototype.setNetStats = function (netStats) {
+  this._netStats = netStats;
+};
+
+// The live connection readout: which transport is carrying inputs, the
+// round-trip latency, the negotiated input delay, and how far behind real
+// time the simulation is (the direct measure of stutter).
+NetworkSession.prototype._gatherStats = function () {
+  var p2p = this._gameLink && this._gameLink.connectedCount() === (this._playersCount - 1);
+  var rtt = p2p ? this._gameLink.getRtt() : this._rtt;
+  return {
+    transport: p2p ? 'P2P' : 'RELAY',
+    rtt: rtt,
+    delay: this._inputDelay,
+    behind: this._behind
+  };
 };
 
 // Connect and open the lobby. If roomCode is given (e.g. from a shared link),
@@ -243,7 +264,7 @@ NetworkSession.prototype._stopPinging = function () {
 };
 
 NetworkSession.prototype._beginMatch = function (seed, playerNumber, playersCount, delay) {
-  this._stopPinging();
+  // Keep pinging through the match so the HUD shows live relay latency.
   this._playerNumber = playerNumber;
   this._playersCount = playersCount === undefined ? 2 : playersCount;
   // The server sizes the delay to the round-trip latency; all clients get the
@@ -251,6 +272,8 @@ NetworkSession.prototype._beginMatch = function (seed, playerNumber, playersCoun
   this._inputDelay = delay || NetworkSession.INPUT_DELAY;
   this._currentTick = 0;
   this._matchStartTime = null;
+  this._behind = 0;
+  this._lastStatsUpdate = 0;
   this._localQueue = {};
   this._remoteQueues = {};
   for (var p = 1; p <= this._playersCount; ++p) {
@@ -276,6 +299,9 @@ NetworkSession.prototype._beginMatch = function (seed, playerNumber, playersCoun
   }
   if (this._voiceChat) {
     this._voiceChat.onMatchStart(this._playerNumber, this._playersCount, this._send.bind(this));
+  }
+  if (this._netStats) {
+    this._netStats.show();
   }
 };
 
@@ -331,6 +357,13 @@ NetworkSession.prototype._updatePlaying = function (ctx) {
     }
   }
   this._sceneManager.draw(ctx);
+
+  // How far behind real time the sim is right now — the direct stutter metric.
+  this._behind = Math.max(0, targetTick - this._currentTick);
+  if (this._netStats && now - this._lastStatsUpdate > 400) {
+    this._lastStatsUpdate = now;
+    this._netStats.update(this._gatherStats());
+  }
 };
 
 NetworkSession.prototype._scheduleLocalInput = function () {
@@ -392,6 +425,9 @@ NetworkSession.prototype._endSession = function () {
   }
   this._state = NetworkSession.State.IDLE;
   this._stopPinging();
+  if (this._netStats) {
+    this._netStats.hide();
+  }
   if (this._gameLink) {
     this._gameLink.stop();
   }
