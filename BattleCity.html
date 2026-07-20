@@ -73,6 +73,8 @@
   <script type="text/javascript" src="src/OnePlayerMenuItem.js"></script>
   <script type="text/javascript" src="src/TwoPlayersMenuItem.js"></script>
   <script type="text/javascript" src="src/OnlineMenuItem.js"></script>
+  <script type="text/javascript" src="src/OnlineLobby.js"></script>
+  <script type="text/javascript" src="src/GameLink.js"></script>
   <script type="text/javascript" src="src/NetworkSession.js"></script>
   <script type="text/javascript" src="src/EnemyPlayerController.js"></script>
   <script type="text/javascript" src="src/EnemyPlayerControllerFactory.js"></script>
@@ -137,21 +139,50 @@
 
       var networkSession = new NetworkSession(keyboard, sceneManager, voiceChat);
       NetworkSession.instance = networkSession;
+
+      var lobby = new OnlineLobby({
+        quickJoin: function () { networkSession.quickJoin(); },
+        create: function (isPublic) { networkSession.createRoom(isPublic); },
+        joinCode: function (code) { networkSession.joinRoom(code); },
+        refresh: function () { networkSession.refreshRooms(); },
+        start: function () { networkSession.hostStart(); },
+        leave: function () { networkSession.leaveRoom(); },
+        cancel: function () { networkSession.cancel(); }
+      });
+      lobby.attach(document.body);
+      lobby.setShareOrigin(window.location.origin);
+      networkSession.setLobby(lobby);
+
+      if (GameLink.isSupported()) {
+        networkSession.setGameLink(new GameLink());
+      }
+
       sceneManager.toLoadingScene();
 
       if (TouchControls.isMobile()) {
         new TouchControls(keyboard).attach(document.body);
       }
 
-      // The interval is only a wake-up source: ticks are gated by wall time
-      // so browsers that fire timers too often (or coalesce them) still run
-      // the simulation at exactly FPS ticks per second.
+      // A shared link (?room=CODE) jumps straight into that room.
+      var roomParam = (window.location.search.match(/[?&]room=([A-Za-z0-9]+)/) || [])[1];
+      if (roomParam) {
+        networkSession.start(roomParam.toUpperCase());
+      }
+
+      // The interval is only a wake-up source. Offline, ticks are gated by
+      // wall time so browsers that fire timers too often (or coalesce them)
+      // still run at FPS ticks per second. Online, the network session paces
+      // itself (and catches up after stalls), so it runs on every wake-up.
       var TICK_INTERVAL = 1000 / FPS;
       var nextTickTime = Date.now();
 
       setInterval(gameLoop, TICK_INTERVAL / 2);
 
       function gameLoop() {
+        if (networkSession.isActive()) {
+          networkSession.update(ctx);
+          return;
+        }
         var now = Date.now();
         if (now < nextTickTime) {
           return;
@@ -160,10 +191,6 @@
         if (now - nextTickTime > 500) {
           // Don't fast-forward after a long stall (background tab, etc).
           nextTickTime = now;
-        }
-        if (networkSession.isActive()) {
-          networkSession.update(ctx);
-          return;
         }
         keyboard.fireEvents();
         sceneManager.update();
